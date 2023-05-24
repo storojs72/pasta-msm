@@ -150,4 +150,37 @@ mod tests {
 
         assert_eq!(ret, naive);
     }
+
+    #[test]
+    fn test_debug() {
+        use std::convert::TryInto;
+        use std::num::ParseIntError;
+        use ff::PrimeField;
+        use pasta_curves::group::GroupEncoding;
+
+        pub fn decode_hex(s: &str) -> Result<Vec<u8>, ParseIntError> {
+            (0..s.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&s[i..i + 2], 16))
+                .collect()
+        }
+
+        let scalars_raw = std::fs::read_to_string(std::path::Path::new("scalars.json")).expect("Unable to read scalars file");
+        let scalars: Vec<String> = serde_json::from_str(scalars_raw.as_str()).expect("couldn't deserialize scalars");
+        let scalars = scalars.into_iter().map(|s| {
+            let tmp = decode_hex(s.as_str()).expect("couldn't decode");
+            pasta_curves::Fq::from_repr(tmp.try_into().unwrap()).unwrap()
+        }).collect::<Vec<pasta_curves::Fq>>();
+
+        let bases_raw = std::fs::read_to_string(std::path::Path::new("bases.json")).expect("Unable to read bases file");
+        let bases: Vec<String> = serde_json::from_str(bases_raw.as_str()).expect("couldn't deserialize bases");
+        let points = bases.into_iter().map(|s| {
+            let tmp = decode_hex(s.as_str()).expect("couldn't decode");
+            pasta_curves::pallas::Point::from_bytes(&tmp.try_into().unwrap()).unwrap().to_affine()
+        }).collect::<Vec<pasta_curves::pallas::Affine>>();
+
+        for _ in 0..10000 {
+            pasta_msm::pallas(points.as_slice(), scalars.as_slice());
+        }
+    }
 }
